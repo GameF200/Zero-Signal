@@ -15,7 +15,7 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.0.0
+    @version 1.1.0
     @author super_sonic
     @changelog:
    		- Initial Release                                                                                                  
@@ -29,16 +29,16 @@
 type Array<T> = {T}
 type Fn = () -> ()
 
-type Signal = {
+export type Signal<T...> = {
 	id        : number,
 	
-	Connect      : (self: Signal, Callback: (...any) -> ()) -> (),
-	Once         : (self: Signal, Callback: (...any) -> ()) -> (),
-	DisconnectAll: (self: Signal) -> (),
-	Disconnect   : (self: Signal, Fn: (...any) -> ()) -> (),
-	Destroy      : (self: Signal) -> (),
-	Wait         : (self: Signal) -> (),
-	Fire         : (self: Signal, ...any) -> ()
+	Connect      : (self: Signal<T...>, Callback: (T...) -> ()) -> (),
+	Once         : (self: Signal<T...>, Callback: (T...) -> ()) -> (),
+	DisconnectAll: (self: Signal<T...>) -> (),
+	Disconnect   : (self: Signal<T...>, Fn: (T...) -> ()) -> (),
+	Destroy      : (self: Signal<T...>) -> (),
+	Wait         : (self: Signal<T...>) -> (),
+	Fire         : (self: Signal<T...>, T...) -> ()
 }
 
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
@@ -51,13 +51,13 @@ local EMPTY_LIST = table.freeze({})
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 -- SoA arrays
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
-local Signals        : Array<Signal>         = table.create(CAPACITY) :: Array<Signal>
+local Signals        : Array<Signal<any>>         = table.create(CAPACITY) :: Array<Signal<any>>
 local Callbacks      : Array<Array<Fn>>      = table.create(CAPACITY, EMPTY_LIST)  :: Array<Array<Fn>> -- shared ref to 1 table
 local OnceFlags      : Array<Array<boolean>> = table.create(CAPACITY, EMPTY_LIST)  :: Array<Array<boolean>>  -- shared ref too
 local ConnectionCount: Array<number>         = table.create(CAPACITY, 0) -- sentinel value
 local Count = 0
 
-local Destroy = function(self: Signal)
+local Destroy = function<T...>(self: Signal<T...>)
 	local id = self.id
 	local last = Count
 
@@ -80,7 +80,7 @@ local Destroy = function(self: Signal)
 	Count -= 1
 end
 
-local Disconnect = function(self: Signal, Fn: (...any) -> ())
+local Disconnect = function<T...>(self: Signal<T...>, Fn: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
 	local flags = OnceFlags[Id]
@@ -102,7 +102,7 @@ local Disconnect = function(self: Signal, Fn: (...any) -> ())
 	end
 end
 
-local DisconnectAll = function(self: Signal)
+local DisconnectAll = function<T...>(self: Signal<T...>)
 	local Id = self.id
 	local list = Callbacks[Id]
 	local flags = OnceFlags[Id]
@@ -114,7 +114,7 @@ local DisconnectAll = function(self: Signal)
 	ConnectionCount[Id] = 0
 end
 
-local Connect = function(self: Signal, Callback: (...any) -> ())
+local Connect = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
 	
@@ -131,7 +131,7 @@ local Connect = function(self: Signal, Callback: (...any) -> ())
 	OnceFlags[Id][n] = false
 end
 
-local Once = function(self: Signal, Callback: (...any) -> ())
+local Once = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
 	if list == EMPTY_LIST then
@@ -148,7 +148,7 @@ local Once = function(self: Signal, Callback: (...any) -> ())
 end
 
 
-local Fire = function(self: Signal, ...)
+local Fire = function<T...>(self: Signal<T...>, ...)
 	local Id = self.id
 	
 	local list = Callbacks[Id]
@@ -178,7 +178,7 @@ local Fire = function(self: Signal, ...)
 	end
 end
 
-local Wait = function(self: Signal)
+local Wait = function<T...>(self: Signal<T...>)
 	local thread = coroutine.running()
 
 	self:Once(function(...)
@@ -188,7 +188,7 @@ local Wait = function(self: Signal)
 	return coroutine.yield()
 end
 
-local Constructor = function(): Signal
+local Constructor = function<T...>(): Signal<T...>
 	Count += 1
 	local signal = {
 		id = Count,
@@ -199,7 +199,7 @@ local Constructor = function(): Signal
 		Wait = Wait,
 		DisconnectAll = DisconnectAll,
 		Disconnect = Disconnect
-	} :: Signal
+	} :: Signal<T...>
 
 	Signals[Count] = signal
 	Callbacks[Count] = EMPTY_LIST
