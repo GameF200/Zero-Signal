@@ -15,7 +15,7 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.1.0
+    @version 1.1.1
     @author super_sonic
     @changelog:
    		- Initial Release                                                                                                  
@@ -46,15 +46,16 @@ export type Signal<T...> = {
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 local CAPACITY = 196
 local CALLBACKS_INITIAL_SIZE = 4
-local EMPTY_LIST = table.freeze({})
+local NULL = table.freeze({})
+type Nullable<T> = typeof(NULL) | T
 
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 -- SoA arrays
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
-local Signals        : Array<Signal<any>>         = table.create(CAPACITY) :: Array<Signal<any>>
-local Callbacks      : Array<Array<Fn>>      = table.create(CAPACITY, EMPTY_LIST)  :: Array<Array<Fn>> -- shared ref to 1 table
-local OnceFlags      : Array<Array<boolean>> = table.create(CAPACITY, EMPTY_LIST)  :: Array<Array<boolean>>  -- shared ref too
-local ConnectionCount: Array<number>         = table.create(CAPACITY, 0) -- sentinel value
+local Signals        : Array<Signal<any>>              = table.create(CAPACITY) :: Array<Signal<any>>
+local Callbacks      : Array<Nullable<Array<Fn>>>      = table.create(CAPACITY, NULL)
+local OnceFlags      : Array<Nullable<Array<boolean>>> = table.create(CAPACITY, NULL)  
+local ConnectionCount: Array<number>                   = table.create(CAPACITY, 0) -- sentinel value
 local Count = 0
 
 local Destroy = function<T...>(self: Signal<T...>)
@@ -73,8 +74,8 @@ local Destroy = function<T...>(self: Signal<T...>)
 	end
 
 	Signals[last] = nil
-	Callbacks[last] = EMPTY_LIST
-	OnceFlags[last] = EMPTY_LIST
+	Callbacks[last] = NULL
+	OnceFlags[last] = NULL
 	ConnectionCount[last] = 0
 
 	Count -= 1
@@ -107,7 +108,7 @@ local DisconnectAll = function<T...>(self: Signal<T...>)
 	local list = Callbacks[Id]
 	local flags = OnceFlags[Id]
 	
-	if list == EMPTY_LIST then return end
+	if list == NULL then return end
 	
 	table.clear(list)
 	table.clear(flags)
@@ -118,7 +119,7 @@ local Connect = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
 	
-	if list == EMPTY_LIST then
+	if list == NULL then
 		list = table.create(CALLBACKS_INITIAL_SIZE)
 		Callbacks[Id] = list :: Array<Fn>
 		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE) :: Array<boolean>
@@ -134,7 +135,7 @@ end
 local Once = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
-	if list == EMPTY_LIST then
+	if list == NULL then
 		list = table.create(CALLBACKS_INITIAL_SIZE)
 		Callbacks[Id] = list :: Array<Fn>
 		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE) :: Array<boolean>
@@ -152,7 +153,7 @@ local Fire = function<T...>(self: Signal<T...>, ...)
 	local Id = self.id
 	
 	local list = Callbacks[Id]
-	if list == EMPTY_LIST then return end
+	if list == NULL then return end
 	local flags = OnceFlags[Id]
 	local n = ConnectionCount[Id]
 	
@@ -202,8 +203,8 @@ local Constructor = function<T...>(): Signal<T...>
 	} :: Signal<T...>
 
 	Signals[Count] = signal
-	Callbacks[Count] = EMPTY_LIST
-	OnceFlags[Count] = EMPTY_LIST
+	Callbacks[Count] = NULL
+	OnceFlags[Count] = NULL
 	ConnectionCount[Count] = 0
 
 	return signal
