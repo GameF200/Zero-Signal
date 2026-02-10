@@ -15,10 +15,10 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.1.1
+    @version 1.2
     @author super_sonic
     @changelog:
-   		- Initial Release                                                                                                  
+   		- Function Disconnect now is like in Roblox                                                                                                  
 --]]
 
 
@@ -28,6 +28,13 @@
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 type Array<T> = {T}
 type Fn = () -> ()
+
+type Connection = {
+	Disconnect: (self: Connection) -> (),
+	_signalId : number?,
+	_index    : number,
+	_connected: boolean,
+}
 
 export type Signal<T...> = {
 	id        : number,
@@ -56,6 +63,7 @@ local Signals        : Array<Signal<any>>              = table.create(CAPACITY) 
 local Callbacks      : Array<Nullable<Array<Fn>>>      = table.create(CAPACITY, NULL)
 local OnceFlags      : Array<Nullable<Array<boolean>>> = table.create(CAPACITY, NULL)  
 local ConnectionCount: Array<number>                   = table.create(CAPACITY, 0) -- sentinel value
+local Connections    : Array<Nullable<Array<any>>>     = table.create(CAPACITY, NULL)
 local Count = 0
 
 local Destroy = function<T...>(self: Signal<T...>)
@@ -81,26 +89,37 @@ local Destroy = function<T...>(self: Signal<T...>)
 	Count -= 1
 end
 
-local Disconnect = function<T...>(self: Signal<T...>, Fn: (T...) -> ())
-	local Id = self.id
-	local list = Callbacks[Id]
-	local flags = OnceFlags[Id]
-	local n = ConnectionCount[Id]
-	
-	for i = 1, n do
-		if list[i] == Fn then
-			local last = n
-			
-			list[i] = list[last]
-			flags[i] = flags[last]
-			
-			list[last] = nil
-			flags[last] = nil
-			
-			ConnectionCount[Id] -= 1
-			return
-		end
+local Disconnect = function(self: Connection)
+	local signalId = self._signalId
+	local index = self._index
+
+	if not signalId then return end
+
+	local list = Callbacks[signalId]
+	local flags = OnceFlags[signalId]
+	local conns = Connections[signalId]
+	local n = ConnectionCount[signalId]
+
+	if n == 0 then return end
+
+	local last = n
+
+	-- swap remove
+	list[index] = list[last]
+	flags[index] = flags[last]
+	conns[index] = conns[last]
+
+	local movedConn = conns[index]
+	if movedConn then
+		movedConn._index = index
 	end
+
+	list[last] = nil
+	flags[last] = nil
+	conns[last] = nil
+
+	ConnectionCount[signalId] = n - 1
+	self._signalId = nil
 end
 
 local DisconnectAll = function<T...>(self: Signal<T...>)
@@ -118,18 +137,29 @@ end
 local Connect = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
-	
+
 	if list == NULL then
 		list = table.create(CALLBACKS_INITIAL_SIZE)
-		Callbacks[Id] = list :: Array<Fn>
-		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE) :: Array<boolean>
+		Callbacks[Id] = list
+		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE)
+		Connections[Id] = table.create(CALLBACKS_INITIAL_SIZE)
 	end
-	
+
 	local n = ConnectionCount[Id] + 1
 	ConnectionCount[Id] = n
-	
+
 	list[n] = Callback
 	OnceFlags[Id][n] = false
+
+	local conn = {
+		_signalId = Id,
+		_index = n,
+		Disconnect = Disconnect,
+	}
+
+	Connections[Id][n] = conn
+
+	return conn
 end
 
 local Once = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
@@ -156,7 +186,7 @@ local Fire = function<T...>(self: Signal<T...>, ...)
 	if list == NULL then return end
 	local flags = OnceFlags[Id]
 	local n = ConnectionCount[Id]
-	
+	local conns = Connections[Id]
 	
 	local i = 1
 	while i <= n do
@@ -167,6 +197,11 @@ local Fire = function<T...>(self: Signal<T...>, ...)
 			
 			list[i] = list[last]
 			flags[i] = flags[last]
+			
+			local movedConn = conns[i]
+			if movedConn then
+				movedConn._index = i
+			end
 			
 			list[last] = nil
 			flags[last] = nil
@@ -199,7 +234,6 @@ local Constructor = function<T...>(): Signal<T...>
 		Destroy = Destroy,
 		Wait = Wait,
 		DisconnectAll = DisconnectAll,
-		Disconnect = Disconnect
 	} :: Signal<T...>
 
 	Signals[Count] = signal
