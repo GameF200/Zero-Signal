@@ -15,10 +15,10 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.2
+    @version 1.2.1
     @author super_sonic
     @changelog:
-   		- Function Disconnect now is like in Roblox                                                                                                  
+   		- Fixed type Signal                                                                                               
 --]]
 
 
@@ -42,7 +42,6 @@ export type Signal<T...> = {
 	Connect      : (self: Signal<T...>, Callback: (T...) -> ()) -> (),
 	Once         : (self: Signal<T...>, Callback: (T...) -> ()) -> (),
 	DisconnectAll: (self: Signal<T...>) -> (),
-	Disconnect   : (self: Signal<T...>, Fn: (T...) -> ()) -> (),
 	Destroy      : (self: Signal<T...>) -> (),
 	Wait         : (self: Signal<T...>) -> (),
 	Fire         : (self: Signal<T...>, T...) -> ()
