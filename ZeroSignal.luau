@@ -15,10 +15,10 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.2.1
+    @version 1.3.0
     @author super_sonic
     @changelog:
-   		- Fixed type Signal                                                                                               
+   		- Fixed bugs with Once and Wait function                                                                                               
 --]]
 
 
@@ -149,7 +149,7 @@ local Connect = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 
 	list[n] = Callback
 	OnceFlags[Id][n] = false
-
+	
 	local conn = {
 		_signalId = Id,
 		_index = n,
@@ -175,6 +175,14 @@ local Once = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 
 	list[n] = Callback
 	OnceFlags[Id][n] = true
+	
+	local conn = {
+		_signalId = Id,
+		_index = n,
+		Disconnect = Disconnect,
+	}
+	Connections[Id][n] = conn
+	return conn
 end
 
 
@@ -214,13 +222,27 @@ local Fire = function<T...>(self: Signal<T...>, ...)
 end
 
 local Wait = function<T...>(self: Signal<T...>)
-	local thread = coroutine.running()
+	local thread: thread = coroutine.running()
+	if not thread then warn "Wait must be called inside a coroutine" end
+
+	local fired = false
+	local result: {any}
 
 	self:Once(function(...)
-		coroutine.resume(thread, ...)
+		fired = true
+		result = {...}
+			
+		if coroutine.status(thread) == "suspended" then
+			task.defer(thread)
+		end
 	end)
 
-	return coroutine.yield()
+	if fired then
+		return table.unpack(result)
+	end
+
+	coroutine.yield()
+	return table.unpack(result)
 end
 
 local Constructor = function<T...>(): Signal<T...>
