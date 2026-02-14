@@ -15,12 +15,13 @@
     Zero Signal - next-gen Signal implementation for any your needs
                                                                       
     @license Apache 2.0
-    @version 1.3.0
+    @version 1.3.1
     @author super_sonic
     @changelog:
-   		- Fixed bugs with Once and Wait function                                                                                               
+   		- Fixed Wait function bug
+		- Added some micro optimizations
+		- Fixed NULL in Once function                                                                                             
 --]]
-
 
 
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
@@ -46,6 +47,9 @@ export type Signal<T...> = {
 	Wait         : (self: Signal<T...>) -> (),
 	Fire         : (self: Signal<T...>, T...) -> ()
 }
+
+local table_clear = table.clear
+local table_create = table.create
 
 --#-#-#-#-#-#-#-#-#-#-#-#-#-#-#
 -- Constants
@@ -128,8 +132,8 @@ local DisconnectAll = function<T...>(self: Signal<T...>)
 	
 	if list == NULL then return end
 	
-	table.clear(list)
-	table.clear(flags)
+	table_clear(list)
+	table_clear(flags)
 	ConnectionCount[Id] = 0
 end
 
@@ -138,10 +142,10 @@ local Connect = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local list = Callbacks[Id]
 
 	if list == NULL then
-		list = table.create(CALLBACKS_INITIAL_SIZE)
+		list = table_create(CALLBACKS_INITIAL_SIZE)
 		Callbacks[Id] = list
-		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE)
-		Connections[Id] = table.create(CALLBACKS_INITIAL_SIZE)
+		OnceFlags[Id] = table_create(CALLBACKS_INITIAL_SIZE)
+		Connections[Id] = table_create(CALLBACKS_INITIAL_SIZE)
 	end
 
 	local n = ConnectionCount[Id] + 1
@@ -165,9 +169,10 @@ local Once = function<T...>(self: Signal<T...>, Callback: (T...) -> ())
 	local Id = self.id
 	local list = Callbacks[Id]
 	if list == NULL then
-		list = table.create(CALLBACKS_INITIAL_SIZE)
+		list = table_create(CALLBACKS_INITIAL_SIZE)
 		Callbacks[Id] = list :: Array<Fn>
-		OnceFlags[Id] = table.create(CALLBACKS_INITIAL_SIZE) :: Array<boolean>
+		OnceFlags[Id] = table_create(CALLBACKS_INITIAL_SIZE) :: Array<boolean>
+		Connections[Id] = table_create(CALLBACKS_INITIAL_SIZE)
 	end
 
 	local n = ConnectionCount[Id] + 1
@@ -233,7 +238,7 @@ local Wait = function<T...>(self: Signal<T...>)
 		result = {...}
 			
 		if coroutine.status(thread) == "suspended" then
-			task.defer(thread)
+			coroutine.resume(thread)
 		end
 	end)
 
